@@ -1,0 +1,18 @@
+[package]
+name = "bmp280-module"
+version = "0.0.1"
+edition = "2021"
+authors = ["Matthew J Perez <matt@mperez.io>"]
+resolver = "2"
+rust-version = "1.83"
+
+[dependencies.micro-rdk]
+git = "https://github.com/viamrobotics/micro-rdk.git"
+version = "0.4.1-rc10"
+rev = "v0.4.1-rc10"
+features = [
+  "esp32"
+]
+
+[package.metadata.com.viam]
+module = true
