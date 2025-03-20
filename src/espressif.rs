@@ -57,11 +57,9 @@ impl Readings for Bme280 {
 
 impl SensorT<f64> for Bme280 {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
-        //log::debug!("free-heap sensor - get readings called");
-        let reading = unsafe { esp_get_free_heap_size() };
         let mut x = HashMap::new();
-        x.insert("bytes".to_string(), reading as f64);
-        //log::debug!("free-heap sensor - get readings OK");
+        x.insert("temp_celsius".to_string(), 10.0 as f64);
+        x.insert("pressure".to_string, 20.0 as f64);
         Ok(x)
     }
 }
