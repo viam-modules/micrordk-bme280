@@ -7,12 +7,18 @@ resolver = "2"
 rust-version = "1.83"
 
 [dependencies.micro-rdk]
-git = "https://github.com/viamrobotics/micro-rdk.git"
-version = "0.4.1-rc10"
-rev = "v0.4.1-rc10"
+path = "../micro-rdk/micro-rdk"
+#git = "https://github.com/viamrobotics/micro-rdk.git"
+#version = "0.4.1-rc10"
+#rev = "v0.4.1-rc10"
 features = [
   "esp32"
 ]
 
 [package.metadata.com.viam]
 module = true
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/bme280", version = "0.1.1" }
+bindings_module = "bme280"
+bindings_header = "bindings.h"
