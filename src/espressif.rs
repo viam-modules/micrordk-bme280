@@ -20,6 +20,15 @@ use micro_rdk::esp32::esp_idf_svc::sys::bme280::*;
 static mut i2c_bus: i2c_bus_handle_t = std::ptr::null_mut() as *mut c_void;
 static mut bme280: bme280_handle_t = std::ptr::null_mut() as *mut c_void;
 
+//typedef enum{
+//#if SOC_I2C_SUPPORT_SLAVE
+//    I2C_MODE_SLAVE = 0,   /*!< I2C slave mode */
+//#endif
+//    I2C_MODE_MASTER,      /*!< I2C master mode */
+//    I2C_MODE_MAX,
+//} i2c_mode_t;
+const I2C_MODE_MASTER: u32 = 0x0;
+
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
     registry.register_sensor("bme280", &Bme280::from_config)
 }
@@ -71,18 +80,30 @@ impl Bme280 {
             return Err(SensorError::ConfigError("BME280 missing i2c_bus attribute"));
         }
 
-        let _config = i2c_config_t {
+        let config = i2c_config_t {
             mode: I2C_MODE_MASTER,
             sda_io_num: 21,
-            sda_pullup_en: GPIO_PULLUP_ENABLE,
+            sda_pullup_en: true,
             scl_io_num: 22,
-            scl_pullup_en: GPIO_PULLUP_ENABLE,
+            scl_pullup_en: true,
             __bindgen_anon_1: i2c_config_t__bindgen_ty_1 {
-                master: i2c_config_t__bindgen_ty_1__bindgen_ty_1 { clk_speed: 0 },
+                master: i2c_config_t__bindgen_ty_1__bindgen_ty_1 { clk_speed: 100000 },
             },
             clk_flags: 0,
         };
 
+        let bus_no = match i2c_handle.name().as_str() {
+            "0" => 0,
+            "1" => 1,
+            _ => 0,
+        };
+
+        unsafe {
+            i2c_bus = i2c_bus_create(0, &config);
+            bme280 = bme280_create(i2c_bus, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
+            bme280_default_init(bme280);
+        }
+        Ok(Arc::new(Mutex::new(Self{})))
         // use i2c_handle.name() to activate bus using esp-idf component
 
         /*
