@@ -43,18 +43,23 @@ use micro_rdk::common::i2c::{I2CHandle, I2cHandleType};
 use micro_rdk::common::registry::{ComponentRegistry, Dependency, RegistryError};
 use micro_rdk::common::status::{Status, StatusError};
 use micro_rdk::DoCommand;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+use micro_rdk::common::sensor::SensorResult;
 
 use micro_rdk::common::sensor::{
     GenericReadingsResult, Readings, Sensor, SensorError, SensorT, SensorType,
 };
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
-    registry.register_sensor("bmp280-viam", &Bmp280::from_config)
+    registry.register_sensor("bme280", &Bmp280::from_config)
 }
 
 enum Register {
+    HumLsb = 0xFE,
+    HumMsb = 0xFD,
     TempXlsb = 0xFC,
     TempLsb = 0xFB,
     TempMsb = 0xFA,
@@ -87,44 +92,54 @@ enum BmpAddr {
 pub struct Bmp280 {
     i2c_handle: I2cHandleType,
     i2c_address: u8,
-    calib: Calibration,
+    calib: RefCell<Calibration>,
 }
 
 impl Status for Bmp280 {
     fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
-        let status = self.status();
-        let mut fields = HashMap::new();
-        fields.insert(
-            "measuring".to_string(),
-            micro_rdk::google::protobuf::Value {
-                kind: Some(micro_rdk::google::protobuf::value::Kind::BoolValue(
-                    status.measuring,
-                )),
-            },
-        );
-        fields.insert(
-            "im_update".to_string(),
-            micro_rdk::google::protobuf::Value {
-                kind: Some(micro_rdk::google::protobuf::value::Kind::BoolValue(
-                    status.im_update,
-                )),
-            },
-        );
-        Ok(Some(micro_rdk::google::protobuf::Struct { fields }))
+        /*
+                let status = self.status();
+                let mut fields = HashMap::new();
+                fields.insert(
+                    "measuring".to_string(),
+                    micro_rdk::google::protobuf::Value {
+                        kind: Some(micro_rdk::google::protobuf::value::Kind::BoolValue(
+                            status.measuring,
+                        )),
+                    },
+                );
+                fields.insert(
+                    "im_update".to_string(),
+                    micro_rdk::google::protobuf::Value {
+                        kind: Some(micro_rdk::google::protobuf::value::Kind::BoolValue(
+                            status.im_update,
+                        )),
+                    },
+                );
+        */
+        Ok(Some(micro_rdk::google::protobuf::Struct {
+            fields: HashMap::new(),
+        }))
     }
 }
 
 impl Sensor for Bmp280 {}
 
-impl SensorT for Bmp280 {
+impl SensorT<f64> for Bmp280 {
     fn get_readings(
         &self,
-    ) -> Result<micro_rdk::common::sensor::TypedReadingsResult<T>, SensorError> {
+    ) -> Result<micro_rdk::common::sensor::TypedReadingsResult<f64>, SensorError> {
         let register_write: [u8; 1] = [Register::PressMsb as u8];
         let mut result: [u8; 24] = [0; 24];
+        let temp = self.temp_one_shot();
+        let pressure = self.pressure_one_shot();
         self.i2c_handle
             .write_read_i2c(self.i2c_address, &register_write, &mut result)?;
-        Ok(self.temp_one_shot())
+        let mut x = HashMap::new();
+        x.insert("temp".to_string(), temp);
+        x.insert("pressure".to_string(), pressure);
+
+        Ok(x)
     }
 }
 
@@ -132,7 +147,11 @@ impl Readings for Bmp280 {
     fn get_generic_readings(
         &mut self,
     ) -> Result<micro_rdk::common::sensor::GenericReadingsResult, SensorError> {
-        unimplemented!();
+        Ok(self
+            .get_readings()?
+            .into_iter()
+            .map(|v| (v.0, SensorResult::<f64> { value: v.1 }.into()))
+            .collect())
     }
 }
 
@@ -188,18 +207,19 @@ impl Bmp280 {
             self.i2c_handle
                 .write_read_i2c(self.i2c_address, &[Register::Calib as u8], &mut data);
 
-        self.calib.dig_t1 = ((data[1] as u16) << 8) | (data[0] as u16);
-        self.calib.dig_t2 = ((data[3] as i16) << 8) | (data[2] as i16);
-        self.calib.dig_t3 = ((data[5] as i16) << 8) | (data[4] as i16);
-        self.calib.dig_p1 = ((data[7] as u16) << 8) | (data[6] as u16);
-        self.calib.dig_p2 = ((data[9] as i16) << 8) | (data[8] as i16);
-        self.calib.dig_p3 = ((data[11] as i16) << 8) | (data[10] as i16);
-        self.calib.dig_p4 = ((data[13] as i16) << 8) | (data[12] as i16);
-        self.calib.dig_p5 = ((data[15] as i16) << 8) | (data[14] as i16);
-        self.calib.dig_p6 = ((data[17] as i16) << 8) | (data[16] as i16);
-        self.calib.dig_p7 = ((data[19] as i16) << 8) | (data[18] as i16);
-        self.calib.dig_p8 = ((data[21] as i16) << 8) | (data[20] as i16);
-        self.calib.dig_p9 = ((data[23] as i16) << 8) | (data[22] as i16);
+        let mut calib = self.calib.borrow_mut();
+        calib.dig_t1 = ((data[1] as u16) << 8) | (data[0] as u16);
+        calib.dig_t2 = ((data[3] as i16) << 8) | (data[2] as i16);
+        calib.dig_t3 = ((data[5] as i16) << 8) | (data[4] as i16);
+        calib.dig_p1 = ((data[7] as u16) << 8) | (data[6] as u16);
+        calib.dig_p2 = ((data[9] as i16) << 8) | (data[8] as i16);
+        calib.dig_p3 = ((data[11] as i16) << 8) | (data[10] as i16);
+        calib.dig_p4 = ((data[13] as i16) << 8) | (data[12] as i16);
+        calib.dig_p5 = ((data[15] as i16) << 8) | (data[14] as i16);
+        calib.dig_p6 = ((data[17] as i16) << 8) | (data[16] as i16);
+        calib.dig_p7 = ((data[19] as i16) << 8) | (data[18] as i16);
+        calib.dig_p8 = ((data[21] as i16) << 8) | (data[20] as i16);
+        calib.dig_p9 = ((data[23] as i16) << 8) | (data[22] as i16);
     }
 
     /// Reads and returns pressure
@@ -212,20 +232,20 @@ impl Bmp280 {
         );
         let press = (data[0] as u32) << 12 | (data[1] as u32) << 4 | (data[2] as u32) >> 4;
 
-        let mut var1 = ((self.calib.t_fine as f64) / 2.0) - 64000.0;
-        let mut var2 = var1 * var1 * (self.calib.dig_p6 as f64) / 32768.0;
-        var2 += var1 * (self.calib.dig_p5 as f64) * 2.0;
-        var2 = (var2 / 4.0) + ((self.calib.dig_p4 as f64) * 65536.0);
-        var1 = ((self.calib.dig_p3 as f64) * var1 * var1 / 524288.0
-            + (self.calib.dig_p2 as f64) * var1)
+        let mut calib = self.calib.borrow_mut();
+        let mut var1 = ((calib.t_fine as f64) / 2.0) - 64000.0;
+        let mut var2 = var1 * var1 * (calib.dig_p6 as f64) / 32768.0;
+        var2 += var1 * (calib.dig_p5 as f64) * 2.0;
+        var2 = (var2 / 4.0) + ((calib.dig_p4 as f64) * 65536.0);
+        var1 = ((calib.dig_p3 as f64) * var1 * var1 / 524288.0 + (calib.dig_p2 as f64) * var1)
             / 524288.0;
-        var1 = (1.0 + var1 / 32768.0) * (self.calib.dig_p1 as f64);
+        var1 = (1.0 + var1 / 32768.0) * (calib.dig_p1 as f64);
         let mut pressure = 1048576.0 - (press as f64);
         if var1 != 0.0 {
             pressure = (pressure - (var2 / 4096.0)) * 6250.0 / var1;
-            var1 = (self.calib.dig_p9 as f64) * pressure * pressure / 2147483648.0;
-            var2 = pressure * (self.calib.dig_p8 as f64) / 32768.0;
-            pressure += (var1 + var2 + (self.calib.dig_p7 as f64)) / 16.0;
+            var1 = (calib.dig_p9 as f64) * pressure * pressure / 2147483648.0;
+            var2 = pressure * (calib.dig_p8 as f64) / 32768.0;
+            pressure += (var1 + var2 + (calib.dig_p7 as f64)) / 16.0;
         }
         pressure
     }
@@ -252,13 +272,13 @@ impl Bmp280 {
         );
         let _pres = (data[0] as u32) << 12 | (data[1] as u32) << 4 | (data[2] as u32) >> 4;
         let temp = (data[3] as u32) << 12 | (data[4] as u32) << 4 | (data[5] as u32) >> 4;
+        let mut calib = self.calib.borrow_mut();
 
-        let v1 = ((temp as f64) / 16384.0 - (self.calib.dig_t1 as f64) / 1024.0)
-            * (self.calib.dig_t2 as f64);
-        let v2 = (((temp as f64) / 131072.0 - (self.calib.dig_t1 as f64) / 8192.0)
-            * ((temp as f64) / 131072.0 - (self.calib.dig_t1 as f64) / 8192.0))
-            * (self.calib.dig_t3 as f64);
-        self.calib.t_fine = (v1 + v2) as i32;
+        let v1 = ((temp as f64) / 16384.0 - (calib.dig_t1 as f64) / 1024.0) * (calib.dig_t2 as f64);
+        let v2 = (((temp as f64) / 131072.0 - (calib.dig_t1 as f64) / 8192.0)
+            * ((temp as f64) / 131072.0 - (calib.dig_t1 as f64) / 8192.0))
+            * (calib.dig_t3 as f64);
+        calib.t_fine = (v1 + v2) as i32;
 
         (v1 + v2) / 5120.0
     }
