@@ -15,6 +15,9 @@ features = [
   "esp32"
 ]
 
+[dependencies]
+log = "0.4.22"
+
 [package.metadata.com.viam]
 module = true
 
