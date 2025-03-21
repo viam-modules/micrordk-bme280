@@ -1,6 +1,5 @@
 use micro_rdk::common::board::Board;
 use micro_rdk::common::config::ConfigType;
-use micro_rdk::common::generic::DoCommand;
 use micro_rdk::common::i2c::{I2CHandle, I2cHandleType};
 use micro_rdk::common::registry::{ComponentRegistry, Dependency, RegistryError};
 use micro_rdk::common::status::{Status, StatusError};
@@ -13,12 +12,10 @@ use micro_rdk::common::sensor::{
     TypedReadingsResult,
 };
 
-use core::ffi::c_void;
-
 use micro_rdk::esp32::esp_idf_svc::sys::bme280::*;
 
-static mut i2c_bus: i2c_bus_handle_t = std::ptr::null_mut() as *mut c_void;
-static mut bme280: bme280_handle_t = std::ptr::null_mut() as *mut c_void;
+static mut I2C_BUS: i2c_bus_handle_t = std::ptr::null_mut();
+static mut BME280: bme280_handle_t = std::ptr::null_mut();
 
 //typedef enum{
 //#if SOC_I2C_SUPPORT_SLAVE
@@ -57,9 +54,19 @@ impl Readings for Bme280 {
 
 impl SensorT<f64> for Bme280 {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
+        //Step3: Read temperature, humidity and pressure
+        let mut temperature: std::ffi::c_float = 0.0;
+        let mut pressure: std::ffi::c_float = 0.0;
+        let t_ptr = &mut temperature as *mut f32;
+        let p_ptr = &mut pressure as *mut f32;
+        unsafe {
+            bme280_read_temperature(BME280, t_ptr);
+            //bme280_read_humidity(bme280, &humidity);
+            bme280_read_pressure(BME280, p_ptr);
+        }
         let mut x = HashMap::new();
-        x.insert("temp_celsius".to_string(), 10.0 as f64);
-        x.insert("pressure".to_string, 20.0 as f64);
+        x.insert("temp_celsius".to_string(), temperature.into());
+        x.insert("pressure".to_string(), pressure.into());
         Ok(x)
     }
 }
@@ -97,11 +104,11 @@ impl Bme280 {
         };
 
         unsafe {
-            i2c_bus = i2c_bus_create(0, &config);
-            bme280 = bme280_create(i2c_bus, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
-            bme280_default_init(bme280);
+            I2C_BUS = i2c_bus_create(bus_no, &config);
+            BME280 = bme280_create(I2C_BUS, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
+            bme280_default_init(BME280);
         }
-        Ok(Arc::new(Mutex::new(Self{})))
+        Ok(Arc::new(Mutex::new(Self {})))
         // use i2c_handle.name() to activate bus using esp-idf component
 
         /*
