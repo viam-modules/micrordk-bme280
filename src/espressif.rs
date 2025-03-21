@@ -76,7 +76,7 @@ impl SensorT<f64> for Bme280 {
 }
 
 impl Bme280 {
-    pub fn from_config(cfg: ConfigType, deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
+    pub fn from_config(_cfg: ConfigType, _deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
         // DO NOT use the board i2c interface to initialize the i2c bus, the idf-component will handle it
         /*
                 //Step1: Init I2C bus
@@ -119,7 +119,7 @@ impl Bme280 {
             I2C_BUS = i2c_bus_create(I2C_BUS_NO, &config);
             log::info!("initialized I2C_BUS to : {:?}", I2C_BUS);
             log::info!("initializing BME280: {:?}", BME280);
-            BME280 = bme280_create(I2C_BUS, BME280_I2C_ADDRESS_DEFAULT);
+            BME280 = bme280_create(I2C_BUS, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
             log::info!("initialized BME280 to : {:?}", BME280);
             esp!(bme280_default_init(BME280))?;
         }

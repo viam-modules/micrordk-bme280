@@ -1,5 +1,5 @@
 [package]
-name = "bmp280-module"
+name = "bme280-module"
 version = "0.0.1"
 edition = "2021"
 authors = ["Matthew J Perez <matt@mperez.io>"]
