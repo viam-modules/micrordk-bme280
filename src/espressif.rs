@@ -58,25 +58,34 @@ impl SensorT<f64> for Bme280 {
     fn get_readings(&self) -> Result<TypedReadingsResult<f64>, SensorError> {
         let mut temperature: f32 = 0.0;
         let mut pressure: f32 = 0.0;
+        let mut humidity: f32 = 0.0;
         unsafe {
-            log::info!("bme280 - reading temp...");
+            log::debug!("bme280 - reading temp...");
             let r = bme280_read_temperature(BME280, &mut temperature as &mut f32);
-            log::warn!("res of reading: {}", r);
-            //bme280_read_humidity(bme280, &humidity);
-            log::info!("bme280 - reading pressure...");
+            log::debug!("res of reading: {}", r);
+
+            log::debug!("bme280 - reading pressure...");
             let r = bme280_read_pressure(BME280, &mut pressure as &mut f32);
-            log::warn!("res of reading: {}", r);
+            log::debug!("res of reading: {}", r);
+
+            log::debug!("bme280 - reading humidity...");
+            let r = bme280_read_humidity(BME280, &mut humidity as &mut f32);
+            log::debug!("res of reading: {}", r);
         }
-        log::info!("temp: {} - pressure: {}", temperature, pressure);
-        let mut x = HashMap::new();
-        x.insert("temp_celsius".to_string(), temperature.into());
-        x.insert("pressure".to_string(), pressure.into());
+        log::debug!("temperature: {}, humidity: {}, pressure: {}", temperature, humidity, pressure);
+        let mut x: HashMap<String, f64> = HashMap::new();
+        x.insert("temperature_c".to_string(), temperature.into());
+        x.insert("humidity".to_string(), humidity.into());
+        x.insert("pressure_hpa".to_string(), pressure.into());
         Ok(x)
     }
 }
 
 impl Bme280 {
-    pub fn from_config(_cfg: ConfigType, _deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
+    pub fn from_config(
+        _cfg: ConfigType,
+        _deps: Vec<Dependency>,
+    ) -> Result<SensorType, SensorError> {
         // DO NOT use the board i2c interface to initialize the i2c bus, the idf-component will handle it
         /*
                 //Step1: Init I2C bus
