@@ -294,9 +294,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "bmp280-module"
+name = "bme280-module"
 version = "0.0.1"
 dependencies = [
+ "log",
  "micro-rdk",
 ]
 
