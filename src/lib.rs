@@ -19,10 +19,6 @@ use std::{
 // idf component re-exported from esp-idf-svc build system
 use micro_rdk::esp32::esp_idf_svc::sys::bme280::*;
 
-/// Global handle to I2C bus
-static mut I2C_BUS: i2c_bus_handle_t = std::ptr::null_mut();
-/// Global handle to BME280 device
-static mut BME280: bme280_handle_t = std::ptr::null_mut();
 const I2C_MODE_MASTER: u32 = 0x1;
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
@@ -30,7 +26,14 @@ pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryE
 }
 
 #[derive(DoCommand)]
-pub struct Bme280 {}
+pub struct Bme280 {
+    // handle to I2C bus
+    i2c_handle: i2c_bus_handle_t,
+    // handle to BME280 device
+    driver_handle: bme280_handle_t, // = std::ptr::null_mut()
+}
+
+unsafe impl Send for Bme280 {}
 
 impl Status for Bme280 {
     fn get_status(&self) -> Result<Option<micro_rdk::google::protobuf::Struct>, StatusError> {
@@ -59,13 +62,19 @@ impl SensorT<f64> for Bme280 {
         unsafe {
             log::debug!("bme280 - reading temperature...");
             esp!(bme280_read_temperature(
-                BME280,
+                self.driver_handle,
                 &mut temperature as &mut f32
             ))?;
             log::debug!("bme280 - reading pressure...");
-            esp!(bme280_read_pressure(BME280, &mut pressure as &mut f32))?;
+            esp!(bme280_read_pressure(
+                self.driver_handle,
+                &mut pressure as &mut f32
+            ))?;
             log::debug!("bme280 - reading humidity...");
-            esp!(bme280_read_humidity(BME280, &mut humidity as &mut f32))?;
+            esp!(bme280_read_humidity(
+                self.driver_handle,
+                &mut humidity as &mut f32
+            ))?;
         }
         log::debug!(
             "temperature: {}, humidity: {}, pressure: {}",
@@ -116,31 +125,49 @@ impl Bme280 {
             clk_flags: 0,
         };
 
+        #[allow(unused_assignments)]
+        let mut i2c_handle = std::ptr::null_mut();
+        let mut driver_handle = std::ptr::null_mut();
+
         unsafe {
-            log::info!("creating I2C_BUS: {:?}", I2C_BUS);
-            I2C_BUS = i2c_bus_create(bus_no, &config);
-            log::info!("created I2C_BUS at : {:?}", I2C_BUS);
-            log::info!("creating BME280: {:?}", BME280);
-            BME280 = bme280_create(I2C_BUS, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
-            log::info!("created BME280 at : {:?}", BME280);
+            log::info!("creating I2C_BUS...");
+
+            i2c_handle = i2c_bus_create(bus_no, &config);
+            if i2c_handle.is_null() {
+                log::error!("failed to create i2c bus `{}`", bus_no);
+                return Err(SensorError::ConfigError("failed to create i2c bus"));
+            }
+            log::info!("created I2C_BUS at : {:?}", i2c_handle);
+            log::info!("creating BME280: {:?}", driver_handle);
+            driver_handle =
+                bme280_create(i2c_handle, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
+            if driver_handle.is_null() {
+                return Err(SensorError::ConfigError("failed to create BME280 device"));
+            }
+            log::info!("created BME280 at : {:?}", driver_handle);
             log::info!("initializing BME280...");
-            esp!(bme280_default_init(BME280))?;
+            esp!(bme280_default_init(driver_handle))?;
             log::info!("BME280 initialized successfully");
         }
-        Ok(Arc::new(Mutex::new(Self {})))
+        Ok(Arc::new(Mutex::new(Self {
+            i2c_handle,
+            driver_handle,
+        })))
     }
 }
 
 impl Drop for Bme280 {
     fn drop(&mut self) {
         unsafe {
-            if !BME280.is_null() {
+            if !self.driver_handle.is_null() {
                 log::debug!("deleting bme280");
-                bme280_delete(BME280);
+                bme280_delete(&mut self.driver_handle as *mut _);
+                // check if BME280 is null
             }
-            if !I2C_BUS.is_null() {
+            if !self.i2c_handle.is_null() {
                 log::info!("deleting I2C bus");
-                i2c_bus_delete(I2C_BUS);
+                i2c_bus_delete(&mut self.i2c_handle as *mut _);
+                // check if null
             }
         }
     }
