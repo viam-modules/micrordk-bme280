@@ -60,17 +60,12 @@ impl SensorT<f64> for Bme280 {
         let mut pressure: f32 = 0.0;
         let mut humidity: f32 = 0.0;
         unsafe {
-            log::debug!("bme280 - reading temp...");
-            let r = bme280_read_temperature(BME280, &mut temperature as &mut f32);
-            log::debug!("res of reading: {}", r);
-
+            log::debug!("bme280 - reading temperature...");
+            esp!(bme280_read_temperature(BME280, &mut temperature as &mut f32));
             log::debug!("bme280 - reading pressure...");
-            let r = bme280_read_pressure(BME280, &mut pressure as &mut f32);
-            log::debug!("res of reading: {}", r);
-
+            esp!(bme280_read_pressure(BME280, &mut pressure as &mut f32));
             log::debug!("bme280 - reading humidity...");
-            let r = bme280_read_humidity(BME280, &mut humidity as &mut f32);
-            log::debug!("res of reading: {}", r);
+            esp!(bme280_read_humidity(BME280, &mut humidity as &mut f32));
         }
         log::debug!("temperature: {}, humidity: {}, pressure: {}", temperature, humidity, pressure);
         let mut x: HashMap<String, f64> = HashMap::new();
