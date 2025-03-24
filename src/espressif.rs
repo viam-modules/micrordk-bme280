@@ -78,39 +78,29 @@ impl SensorT<f64> for Bme280 {
 
 impl Bme280 {
     pub fn from_config(
-        _cfg: ConfigType,
+        cfg: ConfigType,
         _deps: Vec<Dependency>,
     ) -> Result<SensorType, SensorError> {
         // DO NOT use the board i2c interface to initialize the i2c bus, the idf-component will handle it
-        /*
-                //Step1: Init I2C bus
-                i2c_config_t conf = {
-                    .mode = I2C_MODE_MASTER,
-                    .sda_io_num = I2C_MASTER_SDA_IO,
-                    .sda_pullup_en = GPIO_PULLUP_ENABLE,
-                    .scl_io_num = I2C_MASTER_SCL_IO,
-                    .scl_pullup_en = GPIO_PULLUP_ENABLE,
-                    .master.clk_speed = I2C_MASTER_FREQ_HZ,
-                };
-                i2c_bus = i2c_bus_create(I2C_MASTER_NUM, &conf);
+        let bus_no = cfg
+            .get_attribute::<i32>("i2c_bus")
+            .inspect_err(|_| log::warn!("`i2c_bus` attribute not found or invalid, defaulting to bus 0"))
+            .unwrap_or_default();
 
-                //Step2: Init bme280
-                bme280 = bme280_create(i2c_bus, BME280_I2C_ADDRESS_DEFAULT);
-                bme280_default_init(bme280);
-
-                //Step3: Read temperature, humidity and pressure
-                float temperature = 0.0, humidity = 0.0, pressure = 0.0;
-                bme280_read_temperature(bme280, &temperature);
-                bme280_read_humidity(bme280, &humidity);
-                bme280_read_pressure(bme280, &pressure);
-                }
-        */
+        let sda_pin = cfg
+            .get_attribute::<i32>("sda_pin")
+            .inspect_err(|_| log::info!("`sda_pin` attribute not found or invalid, defaulting to pin 22"))
+            .unwrap_or(22);
+        let scl_pin = cfg
+            .get_attribute::<i32>("scl_pin")
+            .inspect_err(|_| log::info!("`scl_pin` attribute not found or invalid, defaulting to pin 21"))
+            .unwrap_or(21);
 
         let config = i2c_config_t {
             mode: I2C_MODE_MASTER,
-            sda_io_num: 21,
+            sda_io_num: sda_pin,
             sda_pullup_en: true,
-            scl_io_num: 22,
+            scl_io_num: scl_pin,
             scl_pullup_en: true,
             __bindgen_anon_1: i2c_config_t__bindgen_ty_1 {
                 master: i2c_config_t__bindgen_ty_1__bindgen_ty_1 { clk_speed: 100000 },
@@ -120,7 +110,7 @@ impl Bme280 {
 
         unsafe {
             log::info!("initializing I2C_BUS: {:?}", I2C_BUS);
-            I2C_BUS = i2c_bus_create(I2C_BUS_NO, &config);
+            I2C_BUS = i2c_bus_create(bus_no, &config);
             log::info!("initialized I2C_BUS to : {:?}", I2C_BUS);
             log::info!("initializing BME280: {:?}", BME280);
             BME280 = bme280_create(I2C_BUS, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
