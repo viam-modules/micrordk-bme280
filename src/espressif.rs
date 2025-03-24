@@ -1,32 +1,29 @@
-use micro_rdk::common::board::Board;
-use micro_rdk::common::config::ConfigType;
-use micro_rdk::common::i2c::{I2CHandle, I2cHandleType};
-use micro_rdk::common::registry::{ComponentRegistry, Dependency, RegistryError};
-use micro_rdk::common::status::{Status, StatusError};
-use micro_rdk::esp32::esp_idf_svc::hal::sys::esp;
-use micro_rdk::DoCommand;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
-use micro_rdk::common::sensor::{
-    GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT, SensorType,
-    TypedReadingsResult,
+use micro_rdk::{
+    common::{
+        config::ConfigType,
+        registry::{ComponentRegistry, Dependency, RegistryError},
+        sensor::{
+            GenericReadingsResult, Readings, Sensor, SensorError, SensorResult, SensorT,
+            SensorType, TypedReadingsResult,
+        },
+        status::{Status, StatusError},
+    },
+    esp32::esp_idf_svc::hal::sys::esp,
+    DoCommand,
+};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
 };
 
+// idf component re-exported from esp-idf-svc build system
 use micro_rdk::esp32::esp_idf_svc::sys::bme280::*;
 
+/// Global handle to I2C bus
 static mut I2C_BUS: i2c_bus_handle_t = std::ptr::null_mut();
+/// Global handle to BME280 device
 static mut BME280: bme280_handle_t = std::ptr::null_mut();
-
-//typedef enum{
-//#if SOC_I2C_SUPPORT_SLAVE
-//    I2C_MODE_SLAVE = 0,   /*!< I2C slave mode */
-//#endif
-//    I2C_MODE_MASTER,      /*!< I2C master mode */
-//    I2C_MODE_MAX,
-//} i2c_mode_t;
 const I2C_MODE_MASTER: u32 = 0x1;
-const I2C_BUS_NO: i32 = 0;
 
 pub fn register_models(registry: &mut ComponentRegistry) -> Result<(), RegistryError> {
     registry.register_sensor("bme280", &Bme280::from_config)
@@ -61,13 +58,21 @@ impl SensorT<f64> for Bme280 {
         let mut humidity: f32 = 0.0;
         unsafe {
             log::debug!("bme280 - reading temperature...");
-            esp!(bme280_read_temperature(BME280, &mut temperature as &mut f32))?;
+            esp!(bme280_read_temperature(
+                BME280,
+                &mut temperature as &mut f32
+            ))?;
             log::debug!("bme280 - reading pressure...");
             esp!(bme280_read_pressure(BME280, &mut pressure as &mut f32))?;
             log::debug!("bme280 - reading humidity...");
             esp!(bme280_read_humidity(BME280, &mut humidity as &mut f32))?;
         }
-        log::debug!("temperature: {}, humidity: {}, pressure: {}", temperature, humidity, pressure);
+        log::debug!(
+            "temperature: {}, humidity: {}, pressure: {}",
+            temperature,
+            humidity,
+            pressure
+        );
         let mut x: HashMap<String, f64> = HashMap::new();
         x.insert("temperature_c".to_string(), temperature.into());
         x.insert("humidity".to_string(), humidity.into());
@@ -77,23 +82,26 @@ impl SensorT<f64> for Bme280 {
 }
 
 impl Bme280 {
-    pub fn from_config(
-        cfg: ConfigType,
-        _deps: Vec<Dependency>,
-    ) -> Result<SensorType, SensorError> {
+    pub fn from_config(cfg: ConfigType, _deps: Vec<Dependency>) -> Result<SensorType, SensorError> {
         // DO NOT use the board i2c interface to initialize the i2c bus, the idf-component will handle it
         let bus_no = cfg
             .get_attribute::<i32>("i2c_bus")
-            .inspect_err(|_| log::warn!("`i2c_bus` attribute not found or invalid, defaulting to bus 0"))
+            .inspect_err(|_| {
+                log::warn!("`i2c_bus` attribute not found or invalid, defaulting to bus 0")
+            })
             .unwrap_or_default();
 
         let sda_pin = cfg
             .get_attribute::<i32>("sda_pin")
-            .inspect_err(|_| log::info!("`sda_pin` attribute not found or invalid, defaulting to pin 22"))
+            .inspect_err(|_| {
+                log::info!("`sda_pin` attribute not found or invalid, defaulting to pin 22")
+            })
             .unwrap_or(22);
         let scl_pin = cfg
             .get_attribute::<i32>("scl_pin")
-            .inspect_err(|_| log::info!("`scl_pin` attribute not found or invalid, defaulting to pin 21"))
+            .inspect_err(|_| {
+                log::info!("`scl_pin` attribute not found or invalid, defaulting to pin 21")
+            })
             .unwrap_or(21);
 
         let config = i2c_config_t {
