@@ -12,8 +12,8 @@ This module utilizes the [Viam Sensor Component](https://docs.viam.com/operate/r
 
 This component utilizes the following configuration attributes:
 - `i2c_bus`: The I2C bus initialized on the board (defaults to `0`)
-- `scl_pin`: The `SCL` I2C clock pin (defaults to `21`)
-- `sda_pin`: The `SDA` IC2 data pin (defaults to `22`)
+- `scl_pin`: The `SCL` I2C clock pin (defaults to `22`)
+- `sda_pin`: The `SDA` IC2 data pin (defaults to `21`)
 
 > NOTE: This component's implementation initializes the I2C bus directly. Do not use in conjunction with the [Viam Board Component](https://docs.viam.com/operate/reference/components/board/) APIs for I2C.
 

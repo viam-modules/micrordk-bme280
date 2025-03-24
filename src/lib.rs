@@ -96,13 +96,13 @@ impl Bme280 {
             .inspect_err(|_| {
                 log::info!("`sda_pin` attribute not found or invalid, defaulting to pin 22")
             })
-            .unwrap_or(22);
+            .unwrap_or(21);
         let scl_pin = cfg
             .get_attribute::<i32>("scl_pin")
             .inspect_err(|_| {
                 log::info!("`scl_pin` attribute not found or invalid, defaulting to pin 21")
             })
-            .unwrap_or(21);
+            .unwrap_or(22);
 
         let config = i2c_config_t {
             mode: I2C_MODE_MASTER,
