@@ -117,14 +117,31 @@ impl Bme280 {
         };
 
         unsafe {
-            log::info!("initializing I2C_BUS: {:?}", I2C_BUS);
+            log::info!("creating I2C_BUS: {:?}", I2C_BUS);
             I2C_BUS = i2c_bus_create(bus_no, &config);
-            log::info!("initialized I2C_BUS to : {:?}", I2C_BUS);
-            log::info!("initializing BME280: {:?}", BME280);
+            log::info!("created I2C_BUS at : {:?}", I2C_BUS);
+            log::info!("creating BME280: {:?}", BME280);
             BME280 = bme280_create(I2C_BUS, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
-            log::info!("initialized BME280 to : {:?}", BME280);
+            log::info!("created BME280 at : {:?}", BME280);
+            log::info!("initializing BME280...");
             esp!(bme280_default_init(BME280))?;
+            log::info!("BME280 initialized successfully");
         }
         Ok(Arc::new(Mutex::new(Self {})))
+    }
+}
+
+impl Drop for Bme280 {
+    fn drop(&mut self) {
+        unsafe {
+            if !BME280.is_null() {
+                log::debug!("deleting bme280");
+                bme280_delete(BME280);
+            }
+            if !I2C_BUS.is_null() {
+                log::info!("deleting I2C bus");
+                i2c_bus_delete(I2C_BUS);
+            }
+        }
     }
 }
