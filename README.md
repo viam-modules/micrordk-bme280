@@ -15,7 +15,7 @@ This component utilizes the following configuration attributes:
 - `scl_pin`: The `SCL` I2C clock pin (defaults to `22`)
 - `sda_pin`: The `SDA` IC2 data pin (defaults to `21`)
 
-> NOTE: This component's implementation initializes the I2C bus directly. Do not use in conjunction with the [Viam Board Component](https://docs.viam.com/operate/reference/components/board/) APIs for I2C.
+> CAUTION: This component's implementation initializes the I2C bus directly and assumes it is the sole device with control of the bus. Do not use in conjunction with the [Viam Board Component](https://docs.viam.com/operate/reference/components/board/) APIs for I2C or other devices on the same bus.
 
 ```json
 {

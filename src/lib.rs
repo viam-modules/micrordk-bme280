@@ -33,6 +33,9 @@ pub struct Bme280 {
     driver_handle: bme280_handle_t, // = std::ptr::null_mut()
 }
 
+// Safety: The raw pointer handles are bound to the initialization and drop of this struct.
+// Additionally, as the current implementation assumes ownership of the i2c bus, when used in isolation,
+// there is no risk of another device manipulating the i2c and device handles.
 unsafe impl Send for Bme280 {}
 
 impl Status for Bme280 {
@@ -125,34 +128,38 @@ impl Bme280 {
             clk_flags: 0,
         };
 
-        #[allow(unused_assignments)]
-        let mut i2c_handle = std::ptr::null_mut();
-        let mut driver_handle = std::ptr::null_mut();
+        let mut sensor = Self {
+            i2c_handle: std::ptr::null_mut(),
+            driver_handle: std::ptr::null_mut(),
+        };
 
         unsafe {
             log::info!("creating I2C_BUS...");
 
-            i2c_handle = i2c_bus_create(bus_no, &config);
-            if i2c_handle.is_null() {
+            sensor.i2c_handle = i2c_bus_create(bus_no, &config);
+            if sensor.i2c_handle.is_null() {
                 log::error!("failed to create i2c bus `{}`", bus_no);
                 return Err(SensorError::ConfigError("failed to create i2c bus"));
             }
-            log::info!("created I2C_BUS at : {:?}", i2c_handle);
-            log::info!("creating BME280: {:?}", driver_handle);
-            driver_handle =
-                bme280_create(i2c_handle, BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap());
-            if driver_handle.is_null() {
+            log::info!("created I2C_BUS at : {:?}", sensor.i2c_handle);
+            sensor.driver_handle = bme280_create(
+                sensor.i2c_handle,
+                BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap(),
+            );
+            if sensor.driver_handle.is_null() {
                 return Err(SensorError::ConfigError("failed to create BME280 device"));
             }
-            log::info!("created BME280 at : {:?}", driver_handle);
+            log::info!("created BME280 at : {:?}", sensor.driver_handle);
             log::info!("initializing BME280...");
-            esp!(bme280_default_init(driver_handle))?;
+            if esp!(bme280_default_init(sensor.driver_handle)).is_err() {
+                log::error!("failed to initialize BME280");
+                return Err(SensorError::ConfigError(
+                    "failed to initialize BME280 device",
+                ));
+            }
             log::info!("BME280 initialized successfully");
         }
-        Ok(Arc::new(Mutex::new(Self {
-            i2c_handle,
-            driver_handle,
-        })))
+        Ok(Arc::new(Mutex::new(sensor)))
     }
 }
 
@@ -162,12 +169,12 @@ impl Drop for Bme280 {
             if !self.driver_handle.is_null() {
                 log::debug!("deleting bme280");
                 bme280_delete(&mut self.driver_handle as *mut _);
-                // check if BME280 is null
+                log::debug!("device_handle value deleting: {:?}", self.driver_handle);
             }
             if !self.i2c_handle.is_null() {
-                log::info!("deleting I2C bus");
+                log::debug!("deleting I2C bus");
                 i2c_bus_delete(&mut self.i2c_handle as *mut _);
-                // check if null
+                log::debug!("i2c_bus handle value deleting: {:?}", self.i2c_handle);
             }
         }
     }
