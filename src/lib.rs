@@ -142,14 +142,18 @@ impl Bme280 {
                 return Err(SensorError::ConfigError("failed to create i2c bus"));
             }
             log::info!("created I2C_BUS at : {:?}", sensor.i2c_handle);
+
+            log::info!("creating BME280 device...");
             sensor.driver_handle = bme280_create(
                 sensor.i2c_handle,
                 BME280_I2C_ADDRESS_DEFAULT.try_into().unwrap(),
             );
+
             if sensor.driver_handle.is_null() {
                 return Err(SensorError::ConfigError("failed to create BME280 device"));
             }
             log::info!("created BME280 at : {:?}", sensor.driver_handle);
+
             log::info!("initializing BME280...");
             if esp!(bme280_default_init(sensor.driver_handle)).is_err() {
                 log::error!("failed to initialize BME280");
