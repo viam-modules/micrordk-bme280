@@ -122,9 +122,7 @@ impl Bme280 {
             sda_pullup_en: true,
             scl_io_num: scl_pin,
             scl_pullup_en: true,
-            __bindgen_anon_1: i2c_config_t__bindgen_ty_1 {
-                master: i2c_config_t__bindgen_ty_1__bindgen_ty_1 { clk_speed: 100000 },
-            },
+            master: i2c_config_t__bindgen_ty_1  { clk_speed: 100000 },
             clk_flags: 0,
         };
 
@@ -136,7 +134,7 @@ impl Bme280 {
         unsafe {
             log::info!("creating I2C_BUS...");
 
-            sensor.i2c_handle = i2c_bus_create(bus_no, &config);
+            sensor.i2c_handle = i2c_bus_create(bus_no.try_into().unwrap(), &config);
             if sensor.i2c_handle.is_null() {
                 log::error!("failed to create i2c bus `{}`", bus_no);
                 return Err(SensorError::ConfigError("failed to create i2c bus"));
