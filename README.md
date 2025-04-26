@@ -10,14 +10,6 @@ Its small dimensions and its low power consumption allow the implementation in b
 
 This module utilizes the [Viam Sensor Component](https://docs.viam.com/operate/reference/components/sensor/) API and acts as a wrapper around the [BME280 ESP-IDF Component](https://components.espressif.com/components/espressif/bme280).
 
-## Building
-
-Currently, this module only supports the `esp-idf` legacy I2C drivers and needs additional flags to compile. 
-
-Either:
-- add `BINDGEN_EXTRA_CLANG_ARGS="-D CONFIG_I2C_BUS_BACKWARD_CONFIG"` to the `[env]` section of `.cargo/config.toml`
-- ensure the environment variable is set while building, e.g. `BINDGEN_EXTRA_CLANG_ARGS="-D CONFIG_I2C_BUS_BACKWARD_CONFIG" make build-esp32-bin`
-
 ## Configuration
 
 This component utilizes the following configuration attributes:
